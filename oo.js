@@ -6,21 +6,20 @@ function _Class(name, superClassName, instVarNames) {
 	this.superClassName = superClassName;
 	this.instVarNames = instVarNames;
 	this.methods = {};
-	this.vars = {};
 }
 
-function _Method(name, implFn) {
-	this.implFn = implFn;
+function _ClassInstance(name) {
 	this.name = name;
+	this.vars = {};
 }
 
 OO.initializeCT = function() {
   // TODO
-  var obj = new _Class("Object", null, null);
-  obj.declareMethod("Object", "initialize", function(){});
-  obj.declareMethod("Object", "===", function(_this, x){return _this === x;});
-  obj.declareMethod("Object", "!==", function(_this, x){return _this !== x;});
+  var obj = new _Class("Object", null, {});
   CT["Object"] = obj;
+  OO.declareMethod("Object", "initialize", function(){});
+  OO.declareMethod("Object", "===", function(_this, x){return _this === x;});
+  OO.declareMethod("Object", "!==", function(_this, x){return _this !== x;});
 };
 
 OO.declareClass = function(name, superClassName, instVarNames) {
@@ -34,18 +33,23 @@ OO.declareClass = function(name, superClassName, instVarNames) {
 	var instVarNamesOrig = instVarNames.slice();
 	if (instVarNames) {
 		instVarNames = instVarNames.sort();
-		for (var i = 0; i < instVarNames.length(); i++) {
-			if (instVarNames[i] == instVarNames[i+1]) {
-				throw new Error("Duplicate variable name!");
+		for (var i = 0; i < instVarNames.length; i++) {
+			if (i+1 < instVarNames.length) {
+				if (instVarNames[i] == instVarNames[i+1]) {
+					throw new Error("Duplicate variable name!");
+				}
 			}
-			if (superClass.instVarNames.indexOf(instVarNames[i]) > -1) {
+			if (superClass.instVarNames.hasOwnProperty(instVarNames[i])) {
 				throw new Error("Duplicate variable name!");
 			}
 		}
 	}
+	var vars = {};
+	for (var i = 0; i < instVarNamesOrig.length; i++) {
+		vars[instVarNamesOrig[i]] = true;
+	}
 	// is inst
-	CT[name] = new _Class(name, superClassName, instVarNamesOrig);
-	CT[name].methods = superClass.methods;
+	CT[name] = new _Class(name, superClassName, vars);
 }
 
 OO.getClass = function(name) {
@@ -62,23 +66,35 @@ OO.declareMethod = function(className, selector, implFn) {
 
 OO.instantiate = function(className) {
 	var classObj = OO.getClass(className);
-	var args = arguments.slice(1);
-	int i = 0;
-	while (i < classObj.instVarNames.length && i < args.length) {
-		classObj.vars[classObj.instVarNames[i]] = args[i];
-	}
-	return classObj;
+	var args = Array.prototype.slice.call(arguments, 1);
+	var instance = new _ClassInstance(className);
+	args.unshift(instance);
+	classObj.methods["initialize"].apply(instance, args);
+	return instance;
 }
 
 OO.send = function(recv, selector) {
 	var classObj = OO.classOf(recv);
-	if (!classObj.methods.hasOwnProperty(selector)) {
+	if (classObj.methods.hasOwnProperty(selector)) {
+		var method = classObj.methods[selector];
+		var args = Array.prototype.slice.call(arguments, 2);
+		args.unshift(recv);
+		return method.apply(recv, args);
+	} else {
+		var parentName = classObj.superClassName;
+		var parentObj;
+		while (parentName) {
+			parentObj = OO.getClass(parentName);
+			if (parentObj.methods.hasOwnProperty(selector)) {
+				var method = classObj.methods[selector];
+				var args = Array.prototype.slice.call(arguments, 2);
+				args.unshift(recv);
+				return method.apply(recv, args);
+			}
+			parentName = parentObj.superClassName;
+		}
 		throw new Error("Message not understood!");
 	}
-	var method = classObj.methods[selector];
-	var args = arguments.slice(2);
-	args.unshift(recv);
-	return method.implFn.apply(recv, args);
 }
 
 OO.classOf = function(obj) {
@@ -86,14 +102,27 @@ OO.classOf = function(obj) {
 }
 
 OO.superSend = function(superClassName, recv, selector) {
-	var classObj = OO.classOf(superClassName);
-	if (!classObj.methods.hasOwnProperty(selector)) {
+	var classObj = OO.getClass(superClassName);
+	if (classObj.methods.hasOwnProperty(selector)) {
+		var method = classObj.methods[selector];
+		var args = Array.prototype.slice.call(arguments, 3);
+		args.unshift(recv);
+		return method.apply(recv, args);
+	} else {
+		var parentName = classObj.superClassName;
+		var parentObj;
+		while (parentName) {
+			parentObj = OO.getClass(parentName);
+			if (parentObj.methods.hasOwnProperty(selector)) {
+				var method = classObj.methods[selector];
+				var args = Array.prototype.slice.call(arguments, 3);
+				args.unshift(recv);
+				return method.apply(recv, args);
+			}
+			parentName = parentObj.superClassName;
+		}
 		throw new Error("Message not understood!");
 	}
-	var method = classObj.methods[selector];
-	var args = arguments.slice(3);
-	args.unshift(recv);
-	return method.implFn.apply(recv, args);
 }
 
 OO.getInstVar = function(recv, instVarName) {
@@ -104,9 +133,21 @@ OO.getInstVar = function(recv, instVarName) {
 }
 
 OO.setInstVar = function(recv, instVarName, value) {
-	if (recv.vars.hasOwnProperty(instVarName)) {
+	var classObj = OO.classOf(recv);
+	if (classObj.instVarNames.hasOwnProperty(instVarName)) {
 		recv.vars[instVarName] = value;
 		return recv.vars[instVarName];
+	} else {
+		var parentName = classObj.superClassName;
+		var parentObj;
+		while (parentName) {
+			parentObj = OO.getClass(parentName);
+			if (parentObj.instVarNames.hasOwnProperty(instVarName)) {
+				recv.vars[instVarName] = value;
+				return recv.vars[instVarName];
+			}
+			parentName = parentObj.superClassName;
+		}
 	}
 	throw new Error("Undeclared variable instance!");
 }
