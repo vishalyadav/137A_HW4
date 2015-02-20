@@ -14,12 +14,21 @@ function _ClassInstance(name) {
 }
 
 OO.initializeCT = function() {
-  // TODO
-  var obj = new _Class("Object", null, {});
-  CT["Object"] = obj;
-  OO.declareMethod("Object", "initialize", function(){});
-  OO.declareMethod("Object", "===", function(_this, x){return _this === x;});
-  OO.declareMethod("Object", "!==", function(_this, x){return _this !== x;});
+	CT = {};
+	var obj = new _Class("Object", null, {});
+	CT["Object"] = obj;
+	OO.declareMethod("Object", "initialize", function(){});
+	OO.declareMethod("Object", "===", function(_this, x){return _this === x;});
+	OO.declareMethod("Object", "!==", function(_this, x){return _this !== x;});
+	OO.declareMethod("Object", "isNumber", function(){return false;});
+	obj = new _Class("Number", "Object", {});
+	CT["Number"] = obj;
+	OO.declareMethod("Number", "isNumber", function(){return true;});
+	OO.declareMethod("Number", "+", function(_this, x){return _this + x;});
+	OO.declareMethod("Number", "-", function(_this, x){return _this - x;});
+	OO.declareMethod("Number", "*", function(_this, x){return _this * x;});
+	OO.declareMethod("Number", "/", function(_this, x){return _this / x;});
+	OO.declareMethod("Number", "%", function(_this, x){return _this % x;});
 };
 
 OO.declareClass = function(name, superClassName, instVarNames) {
@@ -74,7 +83,12 @@ OO.instantiate = function(className) {
 }
 
 OO.send = function(recv, selector) {
-	var classObj = OO.classOf(recv);
+	var classObj;
+	if (typeof recv === "number") {
+		classObj = OO.getClass("Number");
+	} else {
+		classObj = OO.classOf(recv);
+	}
 	if (classObj.methods.hasOwnProperty(selector)) {
 		var method = classObj.methods[selector];
 		var args = Array.prototype.slice.call(arguments, 2);
@@ -86,7 +100,7 @@ OO.send = function(recv, selector) {
 		while (parentName) {
 			parentObj = OO.getClass(parentName);
 			if (parentObj.methods.hasOwnProperty(selector)) {
-				var method = classObj.methods[selector];
+				var method = parentObj.methods[selector];
 				var args = Array.prototype.slice.call(arguments, 2);
 				args.unshift(recv);
 				return method.apply(recv, args);
