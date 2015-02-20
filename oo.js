@@ -21,7 +21,7 @@ OO.initializeCT = function() {
   obj.declareMethod("Object", "===", function(_this, x){return _this === x;});
   obj.declareMethod("Object", "!==", function(_this, x){return _this !== x;});
   CT["Object"] = obj;
-};x
+};
 
 OO.declareClass = function(name, superClassName, instVarNames) {
 	if (CT.hasOwnProperty(name)) {
